@@ -14,12 +14,15 @@ def download_photos(api_id, api_hash, phone, channel_or_chat, destination_direct
                             app_version="1.0.1a")
     client.start(phone)
 
-    entity = client.get_entity(channel_or_chat)
-
     try:
-        entity_name = entity.title
+        entity = client.get_entity(channel_or_chat)
+        try:
+            entity_name = entity.title
+        except:
+            entity_name = entity.username
     except:
-        entity_name = entity.username
+        print(f"Cannot find any chat using {channel_or_chat}")
+        exit
         
     save_path = os.path.join(destination_directory, entity_name)
     if not os.path.exists(save_path):
@@ -89,7 +92,13 @@ if __name__ == "__main__":
     destination_directory = input("Enter the destination directory: ")
     start_date_input = input("Enter the start date (YYYY-MM-DD), leave empty if not needed: ")
     
+    try:
+        channel_or_chat = int(channel_or_chat)
+    except:
+        pass
+    
     if start_date_input:
+        time_delta = timedelta(hours=3)
         start_date = datetime.strptime(start_date_input, '%Y-%m-%d').replace(tzinfo=timezone.utc) + time_delta
     else:
         start_date = None
