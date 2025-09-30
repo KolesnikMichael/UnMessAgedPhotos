@@ -1,3 +1,4 @@
 telethon
 piexif
-pytz
+pillow
+pillow_heif
