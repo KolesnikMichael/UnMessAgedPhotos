@@ -38,28 +38,27 @@ def download_media(api_id, api_hash, phone, channel_or_chat, destination_directo
     for download_type in [InputMessagesFilterPhotoVideo, InputMessagesFilterDocument]:
         offset_id = 0
         counter = 0
-        might_be_downloads = True
+        might_be_media = True
 
-        while might_be_downloads:
+        while might_be_media:
             
             messages_iterator = client.iter_messages(entity=entity, limit=limit, offset_id=offset_id, filter=download_type)
             if not list(messages_iterator):
                 break
             
             for message in messages_iterator:
-
-                message_date = message.forward.date if message.forward else message.date
-                message_date = message_date + time_delta
-                message_date_str = message_date.strftime('%Y_%m_%d-%H_%M_%S')
-
-                if start_date and message_date < start_date:
-                    print(f"Date {start_date_input} reached, exiting")
-                    might_be_downloads = False
+                if start_date and (message.date + time_delta) < start_date:
+                    print(f"Date {start_date_input} reached, done searching with filter {download_type.__name__.replace('InputMessagesFilter', '')}")
+                    might_be_media = False
                     break
 
-                if message.file.mime_type == 'image/jpeg':
+                media_date = message.forward.date if message.forward else message.date
+                media_date = media_date + time_delta
+                media_date_str = media_date.strftime('%Y_%m_%d-%H_%M_%S')
+
+                if 'image/' in message.file.mime_type:
                     media_type = 'Photos'
-                elif message.file.mime_type == 'video/mp4':
+                elif 'video/' in message.file.mime_type:
                     media_type = 'Videos'
                 else:
                     offset_id = message.id
@@ -70,35 +69,37 @@ def download_media(api_id, api_hash, phone, channel_or_chat, destination_directo
                 try:
                     input_file = client.download_media(file)
                 except:
-                    print(f"Cannot download file from message id: {message.id}, date: {message_date_str}, skipping")
+                    print(f"Cannot download file from message id: {message.id}, date: {media_date_str}, skipping")
                     offset_id = message.id
                     continue
                 
-                file_extension = message.file.ext
+                file_extension = message.file.ext.lower()
 
                 img_idx = 0 
                 while True:
                     if img_idx == 0:
-                        output_file = os.path.join(save_path, media_type, f"{message_date_str}{file_extension}")
+                        output_file = os.path.join(save_path, media_type, f"{media_date_str}{file_extension.replace('heic', 'jpg')}")
                     else:
-                        output_file = os.path.join(save_path, media_type, f"{message_date_str}-{img_idx}{file_extension}")
+                        output_file = os.path.join(save_path, media_type, f"{media_date_str}-{img_idx}{file_extension.replace('heic', 'jpg')}")
                 
                     if os.path.exists(output_file):
                         img_idx += 1
                     else:
                         break
-
-                if download_type == InputMessagesFilterPhotoVideo and file_extension == '.jpg':
-                    exif_dict = piexif.load(input_file)
-                    exif_dict['Exif'][piexif.ExifIFD.DateTimeOriginal] = message_date.strftime('%Y:%m:%d %H:%M:%S')
-                    exif_bytes = piexif.dump(exif_dict)
-
-                    with open(output_file, 'wb') as f:
-                        with open(input_file, "rb") as original_file:
-                            original_data = original_file.read()
-                        f.write(original_data[:2])  # Write the JPEG SOI marker
-                        f.write(exif_bytes)
-                        f.write(original_data[2:])  # Write the rest of the original image data
+                        
+                if (download_type == InputMessagesFilterPhotoVideo and file_extension == '.jpg') or file_extension == '.heic':
+                    img = Image.open(input_file)
+                    
+                    if file_extension == '.heic':
+                        img = Image.open(input_file)
+                        exif = img.getexif()
+                        exif_bytes = exif.tobytes()
+                    else:
+                        exif_dict = {'0th': {}, 'Exif': {}, 'GPS': {}, 'Interop': {}, '1st': {}, 'thumbnail': None} 
+                        exif_dict['0th'][306] = media_date.strftime('%Y:%m:%d %H:%M:%S') 
+                        exif_bytes = piexif.dump(exif_dict)
+                        
+                    img.save(output_file, format='jpeg', exif=exif_bytes)
                     os.remove(input_file)
                 else:   
                     os.rename(input_file, output_file)
@@ -113,15 +114,15 @@ def download_media(api_id, api_hash, phone, channel_or_chat, destination_directo
     client.disconnect()
 
 if __name__ == "__main__":
-    api_id = input("API ID: ")
-    api_hash = input("API Hash: ")
-    phone = input("Phone number: ")
-    channel_or_chat = input("Channel/chat/group name/ID: ")
-    start_date_input = input("Start date as YYYY-MM-DD (if needed): ")
+    api_id = input("Enter your API ID: ")
+    api_hash = input("Enter your API Hash: ")
+    phone = input("Enter your phone number: ")
+    channel_or_chat = input("Enter the channel/chat name or ID: ")
+    start_date_input = input("Enter the start date (YYYY-MM-DD), leave empty if not needed: ")
     
     destination_directory = "downloads"
     time_delta = timedelta(hours=3)
-    
+   
     try:
         channel_or_chat = int(channel_or_chat)
     except:
