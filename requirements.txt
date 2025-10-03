@@ -2,3 +2,4 @@ telethon
 piexif
 pillow
 pillow_heif
+logging

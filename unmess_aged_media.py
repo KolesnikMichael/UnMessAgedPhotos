@@ -6,6 +6,7 @@ from telethon.tl.types import InputMessagesFilterPhotoVideo, InputMessagesFilter
 import piexif
 from PIL import Image
 from pillow_heif import register_heif_opener
+import logging
 
 register_heif_opener()
 
@@ -28,13 +29,18 @@ def download_media(api_id, api_hash, phone, channel_or_chat, destination_directo
         print(f"Cannot find any channel, group or chat using {channel_or_chat} of {type(channel_or_chat)} type")
         quit()
         
+    
     save_path = os.path.join(destination_directory, entity_name)
+    
     if os.path.exists(save_path):
         os.rename(save_path, save_path + '_' + datetime.now().strftime('%Y_%m_%d-%H_%M_%S'))
 
     os.makedirs(os.path.join(save_path, 'Photos'))
     os.makedirs(os.path.join(save_path, 'Videos'))
 
+    log_name = os.path.join(save_path, f"{datetime.now().strftime('%Y_%m_%d-%H_%M_%S')}.log")
+    logging.basicConfig(filename=log_name, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    
     for download_type in [InputMessagesFilterPhotoVideo, InputMessagesFilterDocument]:
         offset_id = 0
         counter = 0
@@ -69,7 +75,7 @@ def download_media(api_id, api_hash, phone, channel_or_chat, destination_directo
                 try:
                     input_file = client.download_media(file)
                 except:
-                    print(f"Cannot download file from message id: {message.id}, date: {media_date_str}, skipping")
+                    logging.warning(f"Cannot download file from message id: {message.id}, date: {media_date_str}, skipping")
                     offset_id = message.id
                     continue
                 
@@ -105,8 +111,7 @@ def download_media(api_id, api_hash, phone, channel_or_chat, destination_directo
                     os.rename(input_file, output_file)
                     
                 counter += 1
-                print(f"{counter}/{messages_iterator.total}: {output_file.replace(f"{save_path}\\", '')}")
-
+                logging.info(f"{counter}/{messages_iterator.total}: {output_file.replace(f"{save_path}\\", '')}")
                 time.sleep(delay)
                     
                 offset_id = message.id
